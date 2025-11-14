@@ -4,15 +4,17 @@ using PBL3.Entity;
 using PBL3.Enums;
 using PBL3.Services;
 using PBL3.Repositories;
+using PBL3.Middleware; // added to enable UseAdminAuth extension
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
 builder.Services.AddControllersWithViews();
 builder.Services.AddSession();
 builder.Services.AddControllersWithViews().AddSessionStateTempDataProvider();
-// Đăng ký DbContext
+// Đăng ký DbContext - sử dụng Pomelo MySQL provider vì connection string trỏ tới MySQL
 builder.Services.AddDbContext<AppDbContext>(options =>
-    options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
+ options.UseMySql(builder.Configuration.GetConnectionString("DefaultConnection"),
+ ServerVersion.AutoDetect(builder.Configuration.GetConnectionString("DefaultConnection"))));
 
 // Đăng ký các Repository
 builder.Services.AddScoped<IUserRepositories, UserRepositories>();
@@ -45,8 +47,8 @@ var app = builder.Build();
 // Configure the HTTP request pipeline.
 if (!app.Environment.IsDevelopment())
 {
-    app.UseExceptionHandler("/Home/Error");
-    app.UseHsts();
+ app.UseExceptionHandler("/Home/Error");
+ app.UseHsts();
 }
 
 app.UseHttpsRedirection();
@@ -55,11 +57,12 @@ app.UseStaticFiles(); // ⚠️ Đảm bảo dòng này có để phục vụ h�
 app.UseRouting();
 
 app.UseSession(); // ✅ Đặt sau UseRouting nhưng trước UseAuthorization
+app.UseAdminAuth(); // ✅ Middleware kiểm tra session và redirect tới login nếu không phải admin
 app.UseAuthorization();
 
 // Map route
 app.MapControllerRoute(
-    name: "default",
-    pattern: "{controller=Home}/{action=Index}/{id?}");
+ name: "default",
+ pattern: "{controller=Home}/{action=Index}/{id?}");
 
 app.Run();

@@ -1,4 +1,8 @@
-# Visual Studio files
+# Visual Studio cache folders
+.vs/
 bin/
 obj/
+
+# User-specific files
 *.user
+*.suo

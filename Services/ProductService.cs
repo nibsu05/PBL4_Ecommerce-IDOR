@@ -14,17 +14,20 @@ namespace PBL3.Services
         private readonly IReviewRepositories _reviewRepository;
         private readonly ISellerRepositories _sellerRepository;
         private readonly IBuyerRepositories _buyerRepository;
+        private readonly ILogger<ProductService> _logger;
 
         public ProductService(
             IProductRepositories productRepository,
             IReviewRepositories reviewRepository,
             ISellerRepositories sellerRepository,
-            IBuyerRepositories buyerRepository)
+            IBuyerRepositories buyerRepository,
+            ILogger<ProductService> logger)
         {
             _productRepository = productRepository;
             _reviewRepository = reviewRepository;
             _sellerRepository = sellerRepository;
             _buyerRepository = buyerRepository;
+            _logger = logger;
         }
 
         // Hiển thị toàn bộ sản phẩm của hệ thống
@@ -192,6 +195,46 @@ namespace PBL3.Services
             catch (Exception ex)
             {
                 throw new Exception($"Lỗi khi tính điểm đánh giá cho sản phẩm ID {productId}: " + ex.Message, ex);
+            }
+        }
+
+        public async Task<string> FetchUrlContent(string url)
+        {
+            // ❌ LỖ HỔNG SSRF NẰM Ở ĐÂY ❌
+            // KHÔNG CÓ BẤT KỲ XÁC THỰC HOẶC LỌC (VALIDATION/FILTERING) NÀO
+            // cho tham số 'url' (URL do người dùng cung cấp)
+
+            using (var client = new HttpClient())
+            {
+                // Tắt giới hạn thời gian chờ để SSRF có thể quét cổng/IP chậm hơn (Tùy chọn)
+                client.Timeout = TimeSpan.FromSeconds(20);
+
+                try
+                {
+                    // Thực hiện request trực tiếp đến URL bất kỳ, bao gồm cả 169.254.169.254
+                    HttpResponseMessage response = await client.GetAsync(url);
+                    response.EnsureSuccessStatusCode();
+                    string content = await response.Content.ReadAsStringAsync();
+
+                    _logger.LogInformation("Fetch URL thành công: {Url}", url);
+                    return content;
+                }
+                catch (HttpRequestException ex)
+                {
+                    _logger.LogError(ex, "Lỗi HttpRequest khi fetch URL: {Url}", url);
+                    // Trả về lỗi để attacker dễ dàng suy luận cổng đóng/mở
+                    return $"Lỗi HTTP Request: {ex.Message}";
+                }
+                catch (TaskCanceledException)
+                {
+                    // Thường là lỗi timeout khi quét cổng đóng
+                    return "Request Timeout. Có thể cổng/dịch vụ đang đóng.";
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Lỗi không xác định khi fetch URL: {Url}", url);
+                    return $"Lỗi không xác định: {ex.Message}";
+                }
             }
         }
     }
